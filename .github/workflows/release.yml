@@ -67,21 +67,4 @@ jobs:
           TAG="${{ steps.package.outputs.tag }}"
           gh release create "$TAG" "FusionNotch-$TAG.zip" \
             --title "FusionNotch $TAG" \
-            --notes-file - <<'NOTES'
-### Install
-
-1. Download `FusionNotch-*.zip` below and unzip it.
-2. Move `FusionNotch.app` to `/Applications`.
-3. The build is **ad-hoc signed** (no Apple Developer ID), so Gatekeeper will
-   refuse to open it until you clear the quarantine flag:
-
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/FusionNotch.app
-   ```
-
-4. Launch it. On first launch it installs the agent hooks (Claude Code / Codex);
-   the jump-to-terminal feature will ask for Apple Events permission the first
-   time you use it.
-
-Requires macOS 14+ on a Mac with a notch.
-NOTES
+            --notes-file .github/RELEASE_NOTES.md
