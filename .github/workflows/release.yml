@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+          swift --version
+
+      - name: Build (Release, ad-hoc signed)
+        run: |
+          xcodebuild \
+            -project FusionNotch.xcodeproj \
+            -scheme FusionNotch \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Verify the bundle
+        run: |
+          APP="build/Build/Products/Release/FusionNotch.app"
+          # The hook binary is what feeds the Agents tab; a bundle without it builds
+          # fine and then silently shows an empty panel forever.
+          test -x "$APP/Contents/Helpers/OpenIslandHooks"
+          codesign --verify --strict "$APP"
+          codesign -d --entitlements - "$APP" 2>/dev/null | grep -q apple-events
+
+      - name: Package
+        id: package
+        run: |
+          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # ditto, not `zip`: it is the only archiver that preserves the code signature.
+          ditto -c -k --keepParent \
+            "build/Build/Products/Release/FusionNotch.app" \
+            "FusionNotch-$TAG.zip"
+          shasum -a 256 "FusionNotch-$TAG.zip"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.package.outputs.tag }}"
+          gh release create "$TAG" "FusionNotch-$TAG.zip" \
+            --title "FusionNotch $TAG" \
+            --notes-file - <<'NOTES'
+### Install
+
+1. Download `FusionNotch-*.zip` below and unzip it.
+2. Move `FusionNotch.app` to `/Applications`.
+3. The build is **ad-hoc signed** (no Apple Developer ID), so Gatekeeper will
+   refuse to open it until you clear the quarantine flag:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/FusionNotch.app
+   ```
+
+4. Launch it. On first launch it installs the agent hooks (Claude Code / Codex);
+   the jump-to-terminal feature will ask for Apple Events permission the first
+   time you use it.
+
+Requires macOS 14+ on a Mac with a notch.
+NOTES
