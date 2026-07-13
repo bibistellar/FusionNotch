@@ -7,6 +7,12 @@
 	     None of that is expressible as a sandbox entitlement. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- Hardened Runtime turns on Library Validation, which only lets the process map
+	     libraries whose Team ID matches its own. Release builds are ad-hoc signed and so
+	     carry no Team ID at all, which counts as a mismatch: dyld refuses every embedded
+	     framework and the app dies at launch before main(). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>
