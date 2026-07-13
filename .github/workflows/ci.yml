@@ -31,3 +31,6 @@ jobs:
 
       - name: Check the hook helper got embedded
         run: test -x "build/Build/Products/Debug/FusionNotch.app/Contents/Helpers/OpenIslandHooks"
+
+      - name: Smoke-test the launch
+        run: .github/scripts/smoke-test.sh "build/Build/Products/Debug/FusionNotch.app"

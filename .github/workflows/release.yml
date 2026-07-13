@@ -48,6 +48,12 @@ jobs:
           test -x "$APP/Contents/Helpers/OpenIslandHooks"
           codesign --verify --strict "$APP"
           codesign -d --entitlements - "$APP" 2>/dev/null | grep -q apple-events
+          # Ad-hoc signing leaves the bundle with no Team ID, which Library Validation
+          # reads as a mismatch against its own frameworks. See smoke-test.sh.
+          codesign -d --entitlements - "$APP" 2>/dev/null | grep -q disable-library-validation
+
+      - name: Smoke-test the launch
+        run: .github/scripts/smoke-test.sh "build/Build/Products/Release/FusionNotch.app"
 
       - name: Package
         id: package
