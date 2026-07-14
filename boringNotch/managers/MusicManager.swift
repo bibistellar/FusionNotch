@@ -658,15 +658,34 @@ class MusicManager: ObservableObject {
             }
         }
     }
+    /// Players whose window cannot be reopened the normal way once it is closed.
+    private static let playersThatLoseTheirWindow: Set<String> = ["com.imsyy.splayer"]
+
     func openMusicApp() {
-        guard let bundleID = bundleIdentifier else {
-            print("Error: appBundleIdentifier is nil")
+        // Empty is as useless as nil here, and it is a value we can actually receive:
+        // NowPlaying payloads routinely arrive with no bundle identifier at all.
+        guard let bundleID = bundleIdentifier, !bundleID.isEmpty else {
+            print("Error: appBundleIdentifier is missing")
             return
         }
 
         let workspace = NSWorkspace.shared
         if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
             let configuration = NSWorkspace.OpenConfiguration()
+
+            // SPlayer destroys its window on close and never rebuilds it: activating the
+            // app does nothing, its Dock icon does nothing, and its tray menu has no entry
+            // to bring it back — the window is simply gone until the app is restarted.
+            // Asking for a *new* instance does bring it back: SPlayer holds a
+            // single-instance lock, so the request is handed to the running process, which
+            // shows its window while the newcomer exits. Only for players known to need
+            // it, and only when one is already running — anywhere else this would really
+            // launch a second copy.
+            if Self.playersThatLoseTheirWindow.contains(bundleID),
+               workspace.runningApplications.contains(where: { $0.bundleIdentifier == bundleID }) {
+                configuration.createsNewApplicationInstance = true
+            }
+
             workspace.openApplication(at: appURL, configuration: configuration) { (app, error) in
                 if let error = error {
                     print("Failed to launch app with bundle ID: \(bundleID), error: \(error)")
