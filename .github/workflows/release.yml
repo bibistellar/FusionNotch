@@ -60,9 +60,10 @@ jobs:
         id: signing
         env:
           SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PEM: ${{ secrets.SIGNING_CERT_PEM }}
           SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
         run: |
-          if [ -z "$SIGNING_CERT_P12" ]; then
+          if [ -z "$SIGNING_CERT_P12" ] || [ -z "$SIGNING_CERT_PEM" ]; then
             echo "SIGNING_CERT_P12 is not set. A build signed ad-hoc would drop every"
             echo "user's Accessibility grant on update, so refuse to ship one."
             exit 1
@@ -81,8 +82,12 @@ jobs:
 
           # codesign will not use a certificate it does not trust for code signing, and a
           # self-signed one is not trusted by default.
-          openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin pass:"$SIGNING_CERT_PASSWORD" \
-            -nokeys -clcerts -out "$RUNNER_TEMP/cert.pem"
+          #
+          # The certificate is carried as its own secret rather than extracted from the
+          # p12: macOS's LibreSSL writes p12 files with RC2-40-CBC, which OpenSSL 3 on the
+          # runner refuses to touch as a legacy algorithm. It is only the public half, so
+          # there is nothing to protect by keeping it inside the archive.
+          printf '%s\n' "$SIGNING_CERT_PEM" > "$RUNNER_TEMP/cert.pem"
           sudo security add-trusted-cert -d -r trustRoot -p codeSign \
             -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
 
