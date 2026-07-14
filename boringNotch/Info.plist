@@ -11,16 +11,17 @@
 	<true/>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
-	<!-- Sparkle points at this fork's own (currently unpublished) appcast, NOT at
-	     upstream's. Left as upstream, auto-update would happily "upgrade" FusionNotch
-	     into stock boring.notch and delete the Agents tab. Automatic checks are off
-	     because this fork ships no signed appcast: get releases from GitHub instead. -->
+	<!-- This fork's own appcast and its own signing key. Pointing at upstream's feed
+	     (as the fork inherited it) would let auto-update "upgrade" FusionNotch into
+	     stock boring.notch and delete the Agents tab. The appcast is regenerated and
+	     signed by the release workflow; only an archive signed with the matching
+	     private key will ever be installed. -->
 	<key>SUFeedURL</key>
-	<string>https://bibistellar.github.io/FusionNotch/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/bibistellar/FusionNotch/main/appcast.xml</string>
 	<key>SUEnableAutomaticChecks</key>
-	<false/>
+	<true/>
 	<key>SUPublicEDKey</key>
-	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
+	<string>nLFQZtNGo01nE2m7SnqCPLiJepSwFNMgK70unrFAOYc=</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>

@@ -27,6 +27,29 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Resolve the version from the tag
+        id: version
+        run: |
+          # The input wins. On workflow_dispatch, GITHUB_REF_NAME is the *branch* — so
+          # falling back to it the other way round tags the release "main".
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "refusing to release '$TAG': tags must look like v1.2.3"; exit 1 ;;
+          esac
+          VERSION="${TAG#v}"
+          IFS=. read -r MAJOR MINOR PATCH <<EOF
+          $VERSION
+          EOF
+          # CFBundleVersion is what Sparkle compares, and it must keep climbing. Builds
+          # already in the wild carry upstream's 271, so anything derived from our own
+          # 0.1.x numbering has to clear that bar — hence the 1_000_000 floor.
+          BUILD=$(( 1000000 + MAJOR * 10000 + MINOR * 100 + PATCH ))
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD"     >> "$GITHUB_OUTPUT"
+          echo "releasing $TAG as $VERSION (build $BUILD)"
+
       - name: Build (Release, ad-hoc signed)
         run: |
           xcodebuild \
@@ -38,6 +61,8 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="" \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
             build
 
       - name: Verify the bundle
@@ -58,25 +83,39 @@ jobs:
       - name: Package
         id: package
         run: |
-          # The input wins. On workflow_dispatch, GITHUB_REF_NAME is the *branch* — so
-          # falling back to it the other way round tags the release "main".
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          case "$TAG" in
-            v*) ;;
-            *) echo "refusing to release '$TAG': tags must look like v1.2.3"; exit 1 ;;
-          esac
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          TAG="${{ steps.version.outputs.tag }}"
           # ditto, not `zip`: it is the only archiver that preserves the code signature.
           ditto -c -k --keepParent \
             "build/Build/Products/Release/FusionNotch.app" \
             "FusionNotch-$TAG.zip"
           shasum -a 256 "FusionNotch-$TAG.zip"
+          echo "size=$(stat -f %z "FusionNotch-$TAG.zip")" >> "$GITHUB_OUTPUT"
+
+      - name: Sign the archive for Sparkle
+        id: sign
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "SPARKLE_PRIVATE_KEY is not set — an unsigned appcast would be ignored"
+            echo "by every client, so fail here rather than ship a dead update feed."
+            exit 1
+          fi
+          SIGN_UPDATE=$(find build/SourcePackages/artifacts -name sign_update -type f | head -1)
+          test -x "$SIGN_UPDATE"
+
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle.key
+          SIG=$("$SIGN_UPDATE" "FusionNotch-${{ steps.version.outputs.tag }}.zip" -f /tmp/sparkle.key -p)
+          rm -f /tmp/sparkle.key
+
+          test -n "$SIG"
+          echo "signature=$SIG" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ steps.package.outputs.tag }}"
+          TAG="${{ steps.version.outputs.tag }}"
           # Idempotent: a re-run, or a tag push after a manual dispatch, must refresh the
           # release rather than die on "a release with the same tag name already exists".
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -89,3 +128,40 @@ jobs:
               --title "FusionNotch $TAG" \
               --notes-file .github/RELEASE_NOTES.md
           fi
+
+      # Sparkle reads this file straight from the default branch, so the appcast has to
+      # land on main — not on the tag this workflow was built from.
+      - name: Publish the appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD="${{ steps.version.outputs.build }}"
+          SIZE="${{ steps.package.outputs.size }}"
+          SIG="${{ steps.sign.outputs.signature }}"
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/FusionNotch-$TAG.zip"
+          DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+
+          git fetch origin main
+          git checkout -B main origin/main
+
+          python3 .github/scripts/update-appcast.py \
+            --version "$VERSION" \
+            --build "$BUILD" \
+            --url "$URL" \
+            --length "$SIZE" \
+            --signature "$SIG" \
+            --date "$DATE" \
+            --notes "https://github.com/${{ github.repository }}/releases/tag/$TAG"
+
+          if git diff --quiet appcast.xml; then
+            echo "appcast already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: publish $TAG to the appcast [skip ci]"
+          git push origin main

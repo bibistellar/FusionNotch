@@ -127,10 +127,12 @@ socket in Application Support, liveness detection shells out to `ps`/`lsof`, and
 the Mac App Store, which boring.notch was already locked out of by its three private-API
 dependencies (CGS Spaces, SkyLight, MediaRemote).
 
-**Auto-update is disabled.** Upstream's Sparkle feed is left in place in most forks by
-accident, which would cheerfully "upgrade" this app back into stock boring.notch and delete
-the Agents tab. The feed URL is repointed and automatic checks are off; get new versions from
-Releases.
+**Auto-update is this fork's own.** Upstream's Sparkle feed is left in place in most forks by
+accident, which would cheerfully "upgrade" the app back into stock boring.notch and delete the
+Agents tab. FusionNotch points at its own appcast and its own EdDSA signing key, so only an
+archive signed by this repo's release workflow will ever be installed. Tagging a release
+builds it, signs the archive, and commits the new item to `appcast.xml` on `main`, which is
+what the app reads.
 
 ## Not ported
 
