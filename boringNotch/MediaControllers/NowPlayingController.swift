@@ -31,11 +31,24 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     var supportsFavorite: Bool {
         let bundleID = playbackState.bundleIdentifier
         return bundleID == "com.apple.Music"
+            || MenuBarFavoriteBridge.supportsFavorite(bundleIdentifier: bundleID)
     }
 
     func setFavorite(_ favorite: Bool) async {
         let bundleID = playbackState.bundleIdentifier
-        
+
+        // Players with no scripting interface get driven through their menu. The item is a
+        // toggle, so `favorite` is ignored: a press flips whatever the player currently
+        // holds. For players that expose their state, the caller already read it, so a
+        // toggle lands on the value it asked for anyway.
+        if MenuBarFavoriteBridge.supportsFavorite(bundleIdentifier: bundleID) {
+            await Task.detached(priority: .userInitiated) {
+                MenuBarFavoriteBridge.toggleFavorite(bundleIdentifier: bundleID)
+            }.value
+            await updatePlaybackInfo()
+            return
+        }
+
         if bundleID == "com.apple.Music" {
             let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
             if !runningApps.isEmpty {
@@ -285,23 +298,83 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
 
         newPlaybackState.playbackRate = payload.playbackRate ?? (diff ? self.playbackState.playbackRate : 1.0)
         newPlaybackState.isPlaying = payload.playing ?? (diff ? self.playbackState.isPlaying : false)
+        // A payload without a bundle identifier is not "no player" — it is a payload that
+        // did not carry one, and MediaRemote sends plenty of those, `diff` or not. Letting
+        // one blank the identifier costs the panel its app icon (AppIcon resolves nothing
+        // from "") and breaks click-to-open (urlForApplication("") is nil), which is what
+        // made the artwork click work only sometimes. Keep the last one we were told.
         newPlaybackState.bundleIdentifier = (
             payload.parentApplicationBundleIdentifier ??
             payload.bundleIdentifier ??
-            (diff ? self.playbackState.bundleIdentifier : "")
+            self.playbackState.bundleIdentifier
         )
         
         newPlaybackState.volume = payload.volume ?? (diff ? self.playbackState.volume : 0.5)
-        
+
+        let previous = self.playbackState
         self.playbackState = newPlaybackState
-        
-        // Fetch favorite state for supported apps asynchronously
-        // await fetchFavoriteStateIfSupported()
+
+        // Being liked is a property of the track, so the answer goes stale the moment the
+        // track changes — upstream left this refresh commented out, which is why the heart
+        // kept showing the previous song's state. Carry the old value across the change so
+        // the heart does not flicker, then re-read.
+        //
+        // Only on an actual track change: payloads also arrive for every elapsed-time
+        // tick, and each refresh walks another app's accessibility tree.
+        let trackChanged = newPlaybackState.title != previous.title
+            || newPlaybackState.artist != previous.artist
+            || newPlaybackState.bundleIdentifier != previous.bundleIdentifier
+
+        if trackChanged {
+            scheduleFavoriteRefresh()
+        }
     }
-    
+
+    private var favoriteRefreshTask: Task<Void, Never>?
+
+    /// Re-read the like state a few times after a track change.
+    ///
+    /// The player rebuilds its menu a beat *after* it starts the next track, so a single
+    /// immediate read reliably returns the previous song's answer. Read again as it
+    /// settles; the last read wins.
+    private func scheduleFavoriteRefresh() {
+        favoriteRefreshTask?.cancel()
+
+        let bundleID = playbackState.bundleIdentifier
+        guard MenuBarFavoriteBridge.readsFavoriteState(bundleIdentifier: bundleID) else { return }
+
+        favoriteRefreshTask = Task { [weak self] in
+            for delay in [200, 700, 1_800] {
+                try? await Task.sleep(for: .milliseconds(delay))
+                if Task.isCancelled { return }
+                await self?.fetchFavoriteStateIfSupported()
+            }
+        }
+    }
+
      private func fetchFavoriteStateIfSupported() async {
          let bundleID = playbackState.bundleIdentifier
-        
+
+         // Players driven through their menu: only some of them say which way their
+         // toggle will go. Leave `isFavorite` alone for the ones that don't, so the heart
+         // stays empty rather than claiming a state we never read.
+         if MenuBarFavoriteBridge.supportsFavorite(bundleIdentifier: bundleID) {
+             guard MenuBarFavoriteBridge.readsFavoriteState(bundleIdentifier: bundleID) else { return }
+
+             // Walking another app's accessibility tree is a synchronous IPC round trip;
+             // it has no business on the main actor.
+             let liked = await Task.detached(priority: .utility) {
+                 MenuBarFavoriteBridge.favoriteState(bundleIdentifier: bundleID)
+             }.value
+
+             if let liked, liked != playbackState.isFavorite {
+                 var updated = playbackState
+                 updated.isFavorite = liked
+                 playbackState = updated
+             }
+             return
+         }
+
          if bundleID == "com.apple.Music" {
              let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
              guard !runningApps.isEmpty else { return }
