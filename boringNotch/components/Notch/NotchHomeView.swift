@@ -444,13 +444,22 @@ struct NotchHomeView: View {
             MusicPlayerView(albumArtNamespace: albumArtNamespace)
 
             if Defaults[.showCalendar] {
-                CalendarView()
-                    .frame(width: shouldShowCamera ? 170 : 215)
-                    .onHover { isHovering in
-                        vm.isHoveringCalendar = isHovering
+                Group {
+                    switch Defaults[.sidePanelContent] {
+                    case .calendar:
+                        CalendarView()
+                            .environmentObject(vm)
+                    case .notes:
+                        NotesView()
                     }
-                    .environmentObject(vm)
-                    .transition(.opacity)
+                }
+                .frame(width: shouldShowCamera ? 170 : 215)
+                .onHover { isHovering in
+                    // Named for the calendar, but it is really "the pointer is in the side
+                    // panel" — it keeps the notch from closing under a scrolling list.
+                    vm.isHoveringCalendar = isHovering
+                }
+                .transition(.opacity)
             }
 
             if shouldShowCamera {

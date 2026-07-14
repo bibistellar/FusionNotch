@@ -111,6 +111,11 @@ extension Defaults.Keys {
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     static let showCalendar = Key<Bool>("showCalendar", default: false)
+    /// Which panel `showCalendar` actually shows. Defaults to the calendar so that
+    /// anyone who already turned the panel on keeps seeing what they turned on.
+    static let sidePanelContent = Key<SidePanelContent>("sidePanelContent", default: .calendar)
+    /// How many notes the Notes panel lists.
+    static let notesPanelLimit = Key<Int>("notesPanelLimit", default: 8)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
     static let sliderColor = Key<SliderColorEnum>(
         "sliderUseAlbumArtColor",

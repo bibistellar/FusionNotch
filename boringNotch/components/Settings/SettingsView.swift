@@ -715,15 +715,40 @@ struct Media: View {
 struct CalendarSettings: View {
     @ObservedObject private var calendarManager = CalendarManager.shared
     @Default(.showCalendar) var showCalendar: Bool
+    @Default(.sidePanelContent) var sidePanelContent
+    @Default(.notesPanelLimit) var notesPanelLimit
     @Default(.hideCompletedReminders) var hideCompletedReminders
     @Default(.hideAllDayEvents) var hideAllDayEvents
     @Default(.autoScrollToNextEvent) var autoScrollToNextEvent
 
     var body: some View {
         Form {
-            Defaults.Toggle(key: .showCalendar) {
-                Text("Show calendar")
+            Section {
+                Defaults.Toggle(key: .showCalendar) {
+                    Text("Show a panel beside the music player")
+                }
+                Picker("Panel shows", selection: $sidePanelContent) {
+                    Text("Calendar").tag(SidePanelContent.calendar)
+                    Text("Notes").tag(SidePanelContent.notes)
+                }
+                .disabled(!showCalendar)
+
+                if sidePanelContent == .notes {
+                    Stepper(
+                        "Notes to list: \(notesPanelLimit)",
+                        value: $notesPanelLimit,
+                        in: 3 ... 20
+                    )
+                    .disabled(!showCalendar)
+                }
+            } footer: {
+                if sidePanelContent == .notes {
+                    Text("Notes has no API, so this drives Notes.app over AppleScript: opening the panel launches Notes in the background and macOS will ask for Automation permission. Only note titles and dates are read — never their contents.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+
             Defaults.Toggle(key: .hideCompletedReminders) {
                 Text("Hide completed reminders")
             }

@@ -57,6 +57,14 @@ enum MirrorShapeEnum: String, Defaults.Serializable {
     case circle = "Circular"
 }
 
+/// What sits beside the music player in the open notch.
+enum SidePanelContent: String, Defaults.Serializable, CaseIterable, Identifiable {
+    case calendar = "Calendar"
+    case notes = "Notes"
+
+    var id: String { rawValue }
+}
+
 enum WindowHeightMode: String, Defaults.Serializable {
     case matchMenuBar = "Match menubar height"
     case matchRealNotchSize = "Match real notch height"
