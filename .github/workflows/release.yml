@@ -155,13 +155,20 @@ jobs:
             --date "$DATE" \
             --notes "https://github.com/${{ github.repository }}/releases/tag/$TAG"
 
-          if git diff --quiet appcast.xml; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Stage first, then compare the index. `git diff --quiet <path>` reports no
+          # change for an *untracked* file, so testing the worktree would skip the very
+          # first appcast — greenly, having published nothing.
+          git add appcast.xml
+          if git diff --cached --quiet; then
             echo "appcast already up to date"
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
           git commit -m "chore: publish $TAG to the appcast [skip ci]"
           git push origin main
+
+          test -s appcast.xml
+          grep -q "FusionNotch-$TAG.zip" appcast.xml
