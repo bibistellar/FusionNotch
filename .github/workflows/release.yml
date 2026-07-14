@@ -58,7 +58,13 @@ jobs:
       - name: Package
         id: package
         run: |
-          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          # The input wins. On workflow_dispatch, GITHUB_REF_NAME is the *branch* — so
+          # falling back to it the other way round tags the release "main".
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          case "$TAG" in
+            v*) ;;
+            *) echo "refusing to release '$TAG': tags must look like v1.2.3"; exit 1 ;;
+          esac
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           # ditto, not `zip`: it is the only archiver that preserves the code signature.
           ditto -c -k --keepParent \
@@ -71,6 +77,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.package.outputs.tag }}"
-          gh release create "$TAG" "FusionNotch-$TAG.zip" \
-            --title "FusionNotch $TAG" \
-            --notes-file .github/RELEASE_NOTES.md
+          # Idempotent: a re-run, or a tag push after a manual dispatch, must refresh the
+          # release rather than die on "a release with the same tag name already exists".
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "FusionNotch-$TAG.zip" --clobber
+            gh release edit "$TAG" \
+              --title "FusionNotch $TAG" \
+              --notes-file .github/RELEASE_NOTES.md
+          else
+            gh release create "$TAG" "FusionNotch-$TAG.zip" \
+              --title "FusionNotch $TAG" \
+              --notes-file .github/RELEASE_NOTES.md
+          fi
