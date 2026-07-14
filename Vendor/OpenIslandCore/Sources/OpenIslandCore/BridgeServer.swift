@@ -114,7 +114,21 @@ public final class BridgeServer: @unchecked Sendable {
     private func bindListener(at url: URL) throws -> Listener {
         let parentURL = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parentURL, withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: url)
+
+        // Never take a socket that someone is still answering on. Unlinking it and
+        // rebinding does not stop the other server: it keeps its listening descriptor
+        // and simply loses its name, so its hooks connect to *our* socket while it goes
+        // on believing it is reachable. The first process to lose is the one the user is
+        // actually running, and it fails silently — the panel just stops updating.
+        //
+        // A socket file left behind by a crash answers ECONNREFUSED, and that one is
+        // ours to clear.
+        if FileManager.default.fileExists(atPath: url.path) {
+            if Self.isSocketAlive(at: url) {
+                throw BridgeTransportError.addressInUse(url.path)
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd != -1 else {
@@ -200,6 +214,25 @@ public final class BridgeServer: @unchecked Sendable {
         // clean up stale sockets before binding.  Deleting in stop() causes
         // a race when the old process is being terminated while a new process
         // has already created its socket at the same path.
+    }
+
+    /// Is anything actually accepting on this socket file, or is it a leftover?
+    private static func isSocketAlive(at url: URL) -> Bool {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd != -1 else {
+            return false
+        }
+        defer { close(fd) }
+
+        do {
+            var connected = false
+            try withUnixSocketAddress(path: url.path) { address, length in
+                connected = connect(fd, address, length) != -1
+            }
+            return connected
+        } catch {
+            return false
+        }
     }
 
     private func acceptPendingClients(on listeningFileDescriptor: Int32) {

@@ -44,6 +44,7 @@ public enum BridgeTransportError: Error, LocalizedError {
     case listenerFailed(String)
     case socketPathTooLong
     case systemCallFailed(String, Int32)
+    case addressInUse(String)
 
     public var errorDescription: String? {
         switch self {
@@ -61,6 +62,8 @@ public enum BridgeTransportError: Error, LocalizedError {
             "The Unix socket path is too long for `sockaddr_un`."
         case let .systemCallFailed(name, code):
             "\(name) failed with errno \(code)."
+        case let .addressInUse(path):
+            "Another bridge server is already listening on \(path)."
         }
     }
 }

@@ -293,6 +293,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A second copy is never harmless. Two notch overlays stack on the same pixels,
+        // and — quietly — the newcomer rebinds the bridge socket and orphans the running
+        // instance's listener, so that one's agent hooks are refused from then on and its
+        // Agents panel silently stops updating. Hand focus to whoever got here first.
+        if let existing = NSRunningApplication.runningApplications(
+            withBundleIdentifier: Bundle.main.bundleIdentifier ?? ""
+        ).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            NSLog("[FusionNotch] already running (pid \(existing.processIdentifier)); handing over")
+            existing.activate()
+            NSApp.terminate(nil)
+            return
+        }
 
         // The agent bridge must outlive the Agents tab: events arriving while the
         // notch is closed are what raise the attention badge in the first place.
