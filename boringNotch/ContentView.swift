@@ -37,6 +37,8 @@ struct ContentView: View {
 
     @Default(.showNotHumanFace) var showNotHumanFace
 
+    @Default(.openNotchScale) var openNotchScale
+
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
 
@@ -87,7 +89,11 @@ struct ContentView: View {
             let scaleFactor = 1.0 + gestureProgress * 0.01
             return max(0.6, scaleFactor)
         }()
-        
+
+        // Only the open panel scales. The closed notch has to keep matching the hardware
+        // cutout to the pixel, so it stays at 1.
+        let panelScale: CGFloat = vm.notchState == .open ? CGFloat(openNotchScale) : 1.0
+
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
                 let mainLayout = NotchLayout()
@@ -206,10 +212,11 @@ struct ContentView: View {
         .frame(maxWidth: windowSize.width, maxHeight: windowSize.height, alignment: .top)
         .compositingGroup()
         .scaleEffect(
-            x: gestureScale,
-            y: gestureScale,
+            x: gestureScale * panelScale,
+            y: gestureScale * panelScale,
             anchor: .top
         )
+        .animation(animationSpring, value: panelScale)
         .animation(.smooth, value: gestureProgress)
         .background(dragDetector)
         .preferredColorScheme(.dark)

@@ -1410,7 +1410,8 @@ struct Advanced: View {
     @Default(.extendHoverArea) var extendHoverArea
     @Default(.showOnLockScreen) var showOnLockScreen
     @Default(.hideFromScreenRecording) var hideFromScreenRecording
-    
+    @Default(.openNotchScale) var openNotchScale
+
     @State private var customAccentColor: Color = .accentColor
     @State private var selectedPresetColor: PresetAccentColor? = nil
     let icons: [String] = ["logo2"]
@@ -1559,8 +1560,29 @@ struct Advanced: View {
                 Defaults.Toggle(key: .cornerRadiusScaling) {
                     Text("Corner radius scaling")
                 }
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Open panel size")
+                        Spacer()
+                        Text("\(Int((openNotchScale * 100).rounded()))%")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $openNotchScale, in: 0.6 ... 1.0, step: 0.05) {
+                        EmptyView()
+                    } minimumValueLabel: {
+                        Image(systemName: "minus.magnifyingglass")
+                    } maximumValueLabel: {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                }
             } header: {
                 Text("Window Appearance")
+            } footer: {
+                Text("Shrinks the notch once it is open. The panel is designed for a 16\" screen; on a 14\" it can crowd the display. The closed notch is not affected — it has to keep matching the cutout.")
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
             }
             
             Section {

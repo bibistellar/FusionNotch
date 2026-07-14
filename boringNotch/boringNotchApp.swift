@@ -196,9 +196,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let uuid = screen.displayUUID else { return }
         
         let screenFrame = screen.frame
-        let notchHeight = openNotchSize.height
-        let notchWidth = openNotchSize.width
-        
+        // Track the panel the user actually sees: the open notch is scaled as a whole, so
+        // a drop target sized to the unscaled 640×190 would reach well past its edges.
+        let panelScale = Defaults[.openNotchScale]
+        let notchHeight = openNotchSize.height * panelScale
+        let notchWidth = openNotchSize.width * panelScale
+
         // Create notch region at the top-center of the screen where an open notch would occupy
         let notchRegion = CGRect(
             x: screenFrame.midX - notchWidth / 2,

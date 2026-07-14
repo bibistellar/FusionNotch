@@ -103,6 +103,10 @@ extension Defaults.Keys {
     static let lightingEffect = Key<Bool>("lightingEffect", default: true)
     static let enableShadow = Key<Bool>("enableShadow", default: true)
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
+    /// How much of its designed size the open panel takes up. The panel is laid out at a
+    /// fixed 640×190 and scaled as a whole, so shrinking it never reflows — or clips —
+    /// the fixed-size things inside it (album art, tiles). 14" screens want less of it.
+    static let openNotchScale = Key<Double>("openNotchScale", default: 1.0)
 
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
