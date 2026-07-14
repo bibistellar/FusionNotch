@@ -50,7 +50,48 @@ jobs:
           echo "build=$BUILD"     >> "$GITHUB_OUTPUT"
           echo "releasing $TAG as $VERSION (build $BUILD)"
 
-      - name: Build (Release, ad-hoc signed)
+      # Ad-hoc signing makes the app's designated requirement a cdhash — a hash of that
+      # exact binary. TCC records the requirement when the user grants a permission, so
+      # every new build looks like a different app and silently loses Accessibility and
+      # Apple Events: the toggle stays on in System Settings while the app keeps asking.
+      # A stable (if self-signed) certificate makes the requirement `certificate root =
+      # H"..."`, which survives every rebuild and every Sparkle update.
+      - name: Import the signing certificate
+        id: signing
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_CERT_P12" ]; then
+            echo "SIGNING_CERT_P12 is not set. A build signed ad-hoc would drop every"
+            echo "user's Accessibility grant on update, so refuse to ship one."
+            exit 1
+          fi
+
+          KEYCHAIN="$RUNNER_TEMP/fusionnotch.keychain"
+          echo "$SIGNING_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+
+          security create-keychain -p ci "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+
+          # codesign will not use a certificate it does not trust for code signing, and a
+          # self-signed one is not trusted by default.
+          openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin pass:"$SIGNING_CERT_PASSWORD" \
+            -nokeys -clcerts -out "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+            -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.pem"
+
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Build (Release)
         run: |
           xcodebuild \
             -project FusionNotch.xcodeproj \
@@ -58,9 +99,10 @@ jobs:
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY="FusionNotch Self-Signed" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="" \
+            OTHER_CODE_SIGN_FLAGS="--keychain ${{ steps.signing.outputs.keychain }}" \
             MARKETING_VERSION="${{ steps.version.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
             build
@@ -73,9 +115,12 @@ jobs:
           test -x "$APP/Contents/Helpers/OpenIslandHooks"
           codesign --verify --strict "$APP"
           codesign -d --entitlements - "$APP" 2>/dev/null | grep -q apple-events
-          # Ad-hoc signing leaves the bundle with no Team ID, which Library Validation
-          # reads as a mismatch against its own frameworks. See smoke-test.sh.
+          # The certificate carries no Team ID, which Library Validation reads as a
+          # mismatch against the app's own frameworks. See smoke-test.sh.
           codesign -d --entitlements - "$APP" 2>/dev/null | grep -q disable-library-validation
+          # The whole point of signing with a real certificate: the requirement must be
+          # anchored to it, not to this build's cdhash, or every update resets TCC.
+          codesign -d -r- "$APP" 2>&1 | grep -q 'certificate root'
 
       - name: Smoke-test the launch
         run: .github/scripts/smoke-test.sh "build/Build/Products/Release/FusionNotch.app"
