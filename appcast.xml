@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>FusionNotch</title>
+    <link>https://raw.githubusercontent.com/bibistellar/FusionNotch/main/appcast.xml</link>
+    <description>Updates for FusionNotch</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.1.3</title>
+      <pubDate>Tue, 14 Jul 2026 03:16:57 +0000</pubDate>
+      <link>https://github.com/bibistellar/FusionNotch/releases/tag/v0.1.3</link>
+      <sparkle:version>1000103</sparkle:version>
+      <sparkle:shortVersionString>0.1.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/bibistellar/FusionNotch/releases/download/v0.1.3/FusionNotch-v0.1.3.zip" length="9346164" type="application/octet-stream" sparkle:edSignature="YeRxUzVLt6Emkfkh3f8scl2Ff0baFGaxT79BHcW3pfkFBVyQ/LPYPXmLEIh/sufzxV+NyEeiKJH5EqSvIYNsBA==" />
+    </item>
+  </channel>
+</rss>
