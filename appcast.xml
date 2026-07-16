@@ -6,6 +6,15 @@
     <description>Updates for FusionNotch</description>
     <language>en</language>
     <item>
+      <title>Version 0.2.1</title>
+      <pubDate>Thu, 16 Jul 2026 03:31:14 +0000</pubDate>
+      <link>https://github.com/bibistellar/FusionNotch/releases/tag/v0.2.1</link>
+      <sparkle:version>1000201</sparkle:version>
+      <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/bibistellar/FusionNotch/releases/download/v0.2.1/FusionNotch-v0.2.1.zip" length="9427615" type="application/octet-stream" sparkle:edSignature="DmGuddjq5Ca0YCdcyDqKQ5KhOU50mpooBW4y38tel/JCn9EQ29svHsX+UmY/19RUMyQC76r+6ByurAQHKD43AA==" />
+    </item>
+    <item>
       <title>Version 0.2.0</title>
       <pubDate>Tue, 14 Jul 2026 07:30:54 +0000</pubDate>
       <link>https://github.com/bibistellar/FusionNotch/releases/tag/v0.2.0</link>
