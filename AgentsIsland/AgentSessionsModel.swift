@@ -161,10 +161,48 @@ class AgentSessionsModel: ObservableObject {
 
     // MARK: - Acting on a session
 
+    /// A mode switch the user asked for, held until it can ride Claude's own
+    /// permission channel. There is no unsolicited way to change a running
+    /// session's mode — Claude only reads `setMode` off a permission response —
+    /// so the change stays pending here until the next request the user approves.
+    /// The app never flips the mode itself; it only hands the instruction back
+    /// for Claude to apply and enforce.
+    @Published private(set) var pendingModeChange: [String: ClaudePermissionMode] = [:]
+
+    /// Queue (or clear, when `mode` is nil) a Claude-native mode switch for a session.
+    func requestModeChange(sessionID: String, to mode: ClaudePermissionMode?) {
+        if let mode {
+            pendingModeChange[sessionID] = mode
+        } else {
+            pendingModeChange.removeValue(forKey: sessionID)
+        }
+    }
+
     /// Unblocks the agent's hook process, which is sitting on a socket read waiting
     /// for exactly this answer.
     func resolvePermission(sessionID: String, approve: Bool) {
-        let resolution: PermissionResolution = approve ? .allowOnce() : .deny()
+        if approve {
+            allow(sessionID: sessionID, applying: [])
+        } else {
+            send(resolution: .deny(), sessionID: sessionID)
+        }
+    }
+
+    /// Approve the pending request, carrying any user-chosen permission updates
+    /// straight back to Claude — its own "always allow" rules or a mode switch —
+    /// so Claude, not the app, applies and enforces them. Any pending mode change
+    /// for this session rides along here (the only channel it has).
+    func allow(sessionID: String, applying updates: [ClaudePermissionUpdate]) {
+        var merged = updates
+        let carriesMode = updates.contains { if case .setMode = $0 { return true } else { return false } }
+        if let mode = pendingModeChange[sessionID], !carriesMode {
+            merged.append(.setMode(destination: .session, mode: mode))
+        }
+        pendingModeChange.removeValue(forKey: sessionID)
+        send(resolution: .allowOnce(updatedPermissions: merged), sessionID: sessionID)
+    }
+
+    private func send(resolution: PermissionResolution, sessionID: String) {
         let client = self.client
 
         // Reflect the decision immediately; the server echoes an event back that

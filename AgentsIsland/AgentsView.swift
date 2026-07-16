@@ -86,6 +86,11 @@ struct AgentSessionRow: View {
                 }
 
                 PhaseBadge(phase: session.phase)
+
+                // Only Claude exposes switchable permission modes.
+                if session.claudeMetadata != nil {
+                    PermissionModeMenu(session: session)
+                }
             }
 
             if let request = session.permissionRequest {
@@ -127,12 +132,24 @@ struct PermissionCard: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
             } else {
-                HStack(spacing: 6) {
-                    ActionButton(title: request.primaryActionTitle, tint: .green) {
-                        model.resolvePermission(sessionID: session.id, approve: true)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        ActionButton(title: request.primaryActionTitle, tint: .green) {
+                            model.resolvePermission(sessionID: session.id, approve: true)
+                        }
+                        ActionButton(title: request.secondaryActionTitle, tint: .red) {
+                            model.resolvePermission(sessionID: session.id, approve: false)
+                        }
                     }
-                    ActionButton(title: request.secondaryActionTitle, tint: .red) {
-                        model.resolvePermission(sessionID: session.id, approve: false)
+
+                    // Claude's own "always allow / switch mode" options, which it ships
+                    // with the request and the panel used to drop. Clicking one hands the
+                    // exact update back for Claude to apply — the app never decides on its
+                    // own, so Claude's safety controls stay in charge.
+                    ForEach(Array(request.suggestedUpdates.prefix(3).enumerated()), id: \.offset) { _, update in
+                        ActionButton(title: update.displayLabel, tint: .blue) {
+                            model.allow(sessionID: session.id, applying: [update])
+                        }
                     }
                 }
             }
@@ -182,6 +199,76 @@ struct ActionButton: View {
                 }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Per-session switch for Claude's built-in permission modes. Picking a mode
+/// doesn't change anything itself — it queues a `setMode` that gets handed to
+/// Claude on the next request the user approves, so Claude applies and enforces
+/// it. The label shows Claude's current mode, and a clock marks a change that's
+/// waiting for that next approval.
+struct PermissionModeMenu: View {
+    let session: AgentSession
+    @ObservedObject private var model = AgentSessionsModel.shared
+
+    /// The modes Claude actually cycles between interactively.
+    private let selectable: [ClaudePermissionMode] = [.default, .acceptEdits, .plan, .bypassPermissions]
+
+    private var current: ClaudePermissionMode? { session.claudeMetadata?.permissionMode }
+    private var pending: ClaudePermissionMode? { model.pendingModeChange[session.id] }
+
+    var body: some View {
+        Menu {
+            ForEach(selectable, id: \.self) { mode in
+                Button {
+                    // Picking the current mode clears any pending change instead.
+                    model.requestModeChange(sessionID: session.id, to: mode == current ? nil : mode)
+                } label: {
+                    if mode == (pending ?? current) {
+                        Label(mode.shortLabel, systemImage: "checkmark")
+                    } else {
+                        Text(mode.shortLabel)
+                    }
+                }
+            }
+            if pending != nil {
+                Divider()
+                Button("Cancel pending change") {
+                    model.requestModeChange(sessionID: session.id, to: nil)
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "lock.shield")
+                Text((pending ?? current)?.shortLabel ?? "Mode")
+                if pending != nil {
+                    Image(systemName: "clock")
+                }
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(pending != nil ? .orange : .white.opacity(0.6))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background { Capsule().fill(.white.opacity(0.08)) }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(pending != nil
+              ? "Switches to \(pending!.shortLabel) when you next approve a request in this session"
+              : "Claude permission mode")
+    }
+}
+
+extension ClaudePermissionMode {
+    var shortLabel: String {
+        switch self {
+        case .default: "Default"
+        case .acceptEdits: "Accept Edits"
+        case .plan: "Plan"
+        case .bypassPermissions, .dontAsk: "Bypass"
+        case .auto: "Auto"
+        }
     }
 }
 
