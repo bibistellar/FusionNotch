@@ -116,6 +116,7 @@ extension Defaults.Keys {
     static let sidePanelContent = Key<SidePanelContent>("sidePanelContent", default: .calendar)
     /// How many notes the Notes panel lists.
     static let notesPanelLimit = Key<Int>("notesPanelLimit", default: 8)
+    static let messagesPanelEnabled = Key<Bool>("messagesPanelEnabled", default: true)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
     static let sliderColor = Key<SliderColorEnum>(
         "sliderUseAlbumArtColor",

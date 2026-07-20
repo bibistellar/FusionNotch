@@ -358,6 +358,8 @@ struct ContentView: View {
                         ShelfView()
                     case .agents:
                         AgentsView()
+                    case .messages:
+                        MessagesView()
                     }
                 }
                 .transition(
