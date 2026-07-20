@@ -83,6 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             screenUnlockedObserver = nil
         }
         MusicManager.shared.destroy()
+        MessageCenterModel.shared.stop()
         cleanupDragDetectors()
         cleanupWindows()
         XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
@@ -247,6 +248,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A newly received communication is surfaced in the Messages tab. The provider
+    /// suppresses its initial history snapshot, so launch never opens the notch by itself.
+    @objc private func handleCommunicationMessageReceived() {
+        coordinator.currentView = .messages
+
+        if Defaults[.showOnAllDisplays] {
+            viewModels.values.forEach { $0.open() }
+        } else {
+            vm.open()
+        }
+    }
+
     private func createBoringNotchWindow(for screen: NSScreen, with viewModel: BoringViewModel) -> NSWindow {
         let rect = NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height)
         let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow]
@@ -312,11 +325,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // The agent bridge must outlive the Agents tab: events arriving while the
         // notch is closed are what raise the attention badge in the first place.
         AgentSessionsModel.shared.start()
+        MessageCenterModel.shared.start()
 
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAgentNeedsAttention),
             name: .agentNeedsAttention,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleCommunicationMessageReceived),
+            name: .communicationMessageReceived,
             object: nil
         )
 

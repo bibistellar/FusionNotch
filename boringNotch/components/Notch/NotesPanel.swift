@@ -39,8 +39,9 @@ final class NotesManager: ObservableObject {
 
     private init() {}
 
-    /// Notes changes rarely and the fetch launches another app; don't hammer it.
-    private static let minimumInterval: TimeInterval = 30
+    /// The view polls every five seconds while visible. Keep a little headroom so repeated
+    /// SwiftUI task wakeups cannot issue duplicate Apple Events.
+    private static let minimumInterval: TimeInterval = 4
 
     func refreshIfStale(force: Bool = false) {
         if !force, let lastFetch, Date().timeIntervalSince(lastFetch) < Self.minimumInterval {
@@ -148,13 +149,37 @@ struct NotesView: View {
                 Spacer()
                 if manager.isLoading {
                     ProgressView().controlSize(.mini)
+                } else {
+                    Button {
+                        manager.refreshIfStale(force: true)
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh Notes")
                 }
             }
 
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear { manager.refreshIfStale() }
+        .task {
+            // `.onAppear` only runs when SwiftUI inserts this panel. The home view can stay
+            // mounted while Notes.app is edited, so keep refreshing for exactly as long as
+            // the panel remains visible; SwiftUI cancels this task when it disappears.
+            manager.refreshIfStale(force: true)
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(5))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                manager.refreshIfStale()
+            }
+        }
     }
 
     @ViewBuilder

@@ -328,6 +328,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0FA100042F0A000000000004 /* AgentsIsland */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AgentsIsland; sourceTree = "<group>"; };
+		0FA200012F0A000000000001 /* MessagesIsland */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MessagesIsland; sourceTree = "<group>"; };
 		112FB72F2CCF12CC0015238C /* private */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = private; sourceTree = "<group>"; };
 		11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (11F7485C2EC9AABA00F841DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = BoringNotchXPCHelper; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -571,6 +572,7 @@
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
 				0FA100042F0A000000000004 /* AgentsIsland */,
+				0FA200012F0A000000000001 /* MessagesIsland */,
 				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
 				14CEF4132C5CAED300855D72 /* Products */,
 				14D031EC2C689DB70096E6A1 /* Frameworks */,
@@ -830,6 +832,7 @@
 			fileSystemSynchronizedGroups = (
 				112FB72F2CCF12CC0015238C /* private */,
 				0FA100042F0A000000000004 /* AgentsIsland */,
+				0FA200012F0A000000000001 /* MessagesIsland */,
 			);
 			name = FusionNotch;
 			packageProductDependencies = (
